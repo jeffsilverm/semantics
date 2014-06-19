@@ -32,6 +32,7 @@ def make_fortran_naive( filename, coefficients, x, iterations ):
       num_coefs = len(coefficients)
       f.write("\tPROGRAM NAIVE\n"+\
               "\tREAL C(%d)\n" % num_coefs +\
+              "\tDOUBLE PRECISION X, Y\n" +\
               "\tCHARACTER(len=32) :: arg\n")
       for c in range(num_coefs) :
 # FORTRAN arrays start at 1, but the range function starts at 0
@@ -160,9 +161,8 @@ x = %f;\n""" % x +\
 """for (k=0; k<iterations; k++ ) {
   y=0.0;
   for (i=0; i<%d; i++ ) {
-/* Evidently, there is no built-in function for raising a double to an integer power
-and I am too rushed to write one */\n""" % num_coefs + \
-"""    y=y+c[i]*pow(x, (double) i);
+""" % num_coefs + \
+"""    y=y+c[i]*powi(x, i);
     }
   }
 printf ("result is %f\\n", y);
