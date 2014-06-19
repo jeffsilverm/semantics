@@ -59,8 +59,7 @@ def make_fortran_horner( filename, coefficients, x, iterations ):
       num_coefs = len(coefficients)
       f.write("\tPROGRAM HORNER\n"+\
               "\tDOUBLE PRECISION C(%d)\n" % num_coefs +\
-              "\tDOUBLE PRECISION X, Y\n" + \
-              "\tCHARACTER(len=32) :: arg\n")
+              "\tDOUBLE PRECISION X, Y\n")
       for c in range(num_coefs) :
 # FORTRAN arrays start at 1, but the range function starts at 0
          f.write("\tC(%d)=%f\n" % (c+1, coefficients[c]))
@@ -82,13 +81,29 @@ def make_fortran_horner( filename, coefficients, x, iterations ):
                        setup="from __main__ import fortran_execute", number=10))+" seconds")
 
 
+def c_compile ( filename ):
+   compile_command = ["gcc", filename+".c", "-o", filename, "-lm"]
+   print "The compile command is " + str(compile_command)
+   return_code =  subprocess.call(compile_command)
+   if return_code != 0 :
+      raise subprocess.CalledProcessError
+
+def c_execute ( filename, iterations ):
+   execute_command = ["./"+filename, str(iterations)]
+   print "The execute command is " + str(execute_command)
+   return_code =  subprocess.call(execute_command)
+   if return_code != 0 :
+      raise subprocess.CalledProcessError
+
+
 def make_c_naive( filename, coefficients, x, iterations ):
    with open(filename+".c", 'w') as f:
       num_coefs = len(coefficients)
       f.write("#include <stdlib>\n" + \
               "int main(int argc, char *argv[] )\n" + \
               "double C[%d];\n" % num_coefs + \
-              "double x, y;\n")
+              "double x, y;\n" +\
+              "int i;\n" )
       for i in range(num_coefs):
          f.write("c[%d]=%f;\n", coefficients[i])
       f.write("iterations = atoi(argv[1]); \n" +\
@@ -96,7 +111,15 @@ def make_c_naive( filename, coefficients, x, iterations ):
               "for (k=0, k<iterations, k++ ) {\n" +\
               "  y=0.0;\n" +\
               "  for (i=0, i<%d, i++ ) {\n" +\
-              "    Y
+              "    y=y+c[i]*pow(x,i)" + \
+              "  }\n" +\
+              "}\n" +\
+              'printf ("result is %f\n", y);\n"' + \
+              "}\n" )
+   c_compile ( filename )
+   print(str(timeit.timeit("c_execute('%s', %d)" % (filename, iterations), \
+                       setup="from __main__ import c_execute", number=10))+" seconds")
+
              
 
 def make_c_horner( filename, coefficients, x, iterations ):
@@ -117,7 +140,7 @@ if __name__ == "__main__" :
 
    make_c_naive ("naive_c", coefficients, 1.0, iterations )
 
-   make_c_horner ("horner_c", coefficients, 1.0, iterations )
+#   make_c_horner ("horner_c", coefficients, 1.0, iterations )
 
 #   compile_fortran ("naive_fortran.f", "naive_fortran")
 
