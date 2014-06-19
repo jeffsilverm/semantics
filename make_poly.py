@@ -18,7 +18,7 @@ def fortran_compile ( filename ):
 
 def fortran_execute ( filename, iterations ):
    execute_command = ["./"+filename, str(iterations)]
-   print "The execute command is " + str(execute_command)
+#   print "The execute command is " + str(execute_command)
    return_code =  subprocess.call(execute_command)
    if return_code != 0 :
       raise subprocess.CalledProcessError
@@ -91,7 +91,7 @@ def c_compile ( filename ):
 
 def c_execute ( filename, iterations ):
    execute_command = ["./"+filename, str(iterations)]
-   print "The execute command is " + str(execute_command)
+#   print "The execute command is " + str(execute_command)
    return_code =  subprocess.call(execute_command)
    if return_code != 0 :
       raise subprocess.CalledProcessError
@@ -133,7 +133,20 @@ def make_c_naive( filename, coefficients, x, iterations ):
       num_coefs = len(coefficients)
       f.write("""#include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+
+/* C doesn't have a function that raises a double number to an integer power.
+It has pow, which uses 2 infinite series, and increased execution time by a
+factor of 8 */
+double powi( double x, int i ){
+  double r;
+  int k;
+  r = 1.0;
+  for (k=0; k<i; k++ ){
+    r *= x;
+  }
+  return r;
+}
+
 int main(int argc, char *argv[] ){\n
 double c[%d];\n
 double x, y;
