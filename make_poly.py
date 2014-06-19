@@ -59,7 +59,8 @@ def make_fortran_horner( filename, coefficients, x, iterations ):
       num_coefs = len(coefficients)
       f.write("\tPROGRAM HORNER\n"+\
               "\tDOUBLE PRECISION C(%d)\n" % num_coefs +\
-              "\tDOUBLE PRECISION X, Y\n")
+              "\tDOUBLE PRECISION X, Y\n" +\
+              "\tCHARACTER(len=32) :: arg\n")
       for c in range(num_coefs) :
 # FORTRAN arrays start at 1, but the range function starts at 0
          f.write("\tC(%d)=%f\n" % (c+1, coefficients[c]))
@@ -96,34 +97,70 @@ def c_execute ( filename, iterations ):
       raise subprocess.CalledProcessError
 
 
-def make_c_naive( filename, coefficients, x, iterations ):
+def make_c_horner( filename, coefficients, x, iterations ):
    with open(filename+".c", 'w') as f:
       num_coefs = len(coefficients)
-      f.write("#include <stdlib>\n" + \
-              "int main(int argc, char *argv[] )\n" + \
-              "double C[%d];\n" % num_coefs + \
-              "double x, y;\n" +\
-              "int i;\n" )
+      f.write("""#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+int main(int argc, char *argv[] ){\n
+double c[%d];\n
+double x, y;
+int i, k;
+int iterations;\n"""  % num_coefs )
       for i in range(num_coefs):
-         f.write("c[%d]=%f;\n", coefficients[i])
-      f.write("iterations = atoi(argv[1]); \n" +\
-              "x = %f;\n" % x +\
-              "for (k=0, k<iterations, k++ ) {\n" +\
-              "  y=0.0;\n" +\
-              "  for (i=0, i<%d, i++ ) {\n" +\
-              "    y=y+c[i]*pow(x,i)" + \
-              "  }\n" +\
-              "}\n" +\
-              'printf ("result is %f\n", y);\n"' + \
-              "}\n" )
+         f.write("c[%d]=%f;\n" % (i, coefficients[i]))
+      f.write("""
+iterations = atoi(argv[1]);
+x = %f;
+for (k=0; k<iterations; k++ ) {
+  y=0.0;
+  for (i=0; i<%d; i++ ) {
+    y=c[i]+x*y;
+    }
+  }
+printf ("result is %%f\\n", y);
+return 0;  
+}""" % (x, num_coefs) )
    c_compile ( filename )
    print(str(timeit.timeit("c_execute('%s', %d)" % (filename, iterations), \
                        setup="from __main__ import c_execute", number=10))+" seconds")
 
              
 
-def make_c_horner( filename, coefficients, x, iterations ):
-   pass
+def make_c_naive( filename, coefficients, x, iterations ):
+   with open(filename+".c", 'w') as f:
+      num_coefs = len(coefficients)
+      f.write("""#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+int main(int argc, char *argv[] ){\n
+double c[%d];\n
+double x, y;
+int i, k;
+int iterations;\n"""  % num_coefs )
+      for i in range(num_coefs):
+         f.write("c[%d]=%f;\n" % (i, coefficients[i]))
+      f.write("""
+iterations = atoi(argv[1]);
+x = %f;\n""" % x +\
+"""for (k=0; k<iterations; k++ ) {
+  y=0.0;
+  for (i=0; i<%d; i++ ) {
+/* Evidently, there is no built-in function for raising a double to an integer power
+and I am too rushed to write one */\n""" % num_coefs + \
+"""    y=y+c[i]*pow(x, (double) i);
+    }
+  }
+printf ("result is %f\\n", y);
+return 0;  
+}""" )
+   c_compile ( filename )
+   print(str(timeit.timeit("c_execute('%s', %d)" % (filename, iterations), \
+                       setup="from __main__ import c_execute", number=10))+" seconds")
+
+             
+
 
 if __name__ == "__main__" :
    order = int( raw_input("Enter the order of the polynomial "))
@@ -140,15 +177,5 @@ if __name__ == "__main__" :
 
    make_c_naive ("naive_c", coefficients, 1.0, iterations )
 
-#   make_c_horner ("horner_c", coefficients, 1.0, iterations )
+   make_c_horner ("horner_c", coefficients, 1.0, iterations )
 
-#   compile_fortran ("naive_fortran.f", "naive_fortran")
-
-#   compile_fortran ("horner_fortran.f", "horner_fortran")
-
-#   compile_c ("naive_c.c", "naive_c")
-
-#   compile_c ("horner_c.c", "horner_c")
-
-   
-                
