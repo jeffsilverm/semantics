@@ -7,6 +7,7 @@
 import random
 import subprocess
 import timeit
+from efficient_exponent import efficient_exponent
 
 
 def fortran_compile ( filename ):
@@ -181,12 +182,12 @@ int iterations;\n"""  % num_coefs )
 iterations = atoi(argv[1]);
 x = %f;
 for (k=0; k<iterations; k++ ) {
-  y=""" % x)
-      for i in range(num_coefs) :
+  y=c[0] +""" % x)
+      for i in range(1,num_coefs) :
          if i < num_coefs-1 :
-            f.write("c[%d]*powi(x, %d)+" % (i,i))
+            f.write(("c[%d]*" % i ) + efficient_exponent(i,'x')+" + ")
          else :
-            f.write("c[%d]*powi(x, %d);" % (i,i))
+            f.write(("c[%d]*" % i ) + efficient_exponent(i,'x')+";" )
       f.write("""
     }
 printf ("result is %f\\n", y);
