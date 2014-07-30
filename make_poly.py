@@ -7,10 +7,12 @@
 import random
 import subprocess
 import timeit
+from efficient_exponent import efficient_exponent
 
 
 def fortran_compile ( filename ):
-   compile_command = ["gfortran", filename+".f", "-o", filename]
+# fixed-line-length=none means that a line can be as long as it needs to be.
+   compile_command = ["gfortran", filename+".f", "-ffixed-line-length-none", "-o", filename]
    print "The compile command is " + str(compile_command)
    return_code =  subprocess.call(compile_command)
    if return_code != 0 :
@@ -41,15 +43,27 @@ def make_fortran_naive( filename, coefficients, x, iterations ):
       f.write("\tCALL getarg(1, arg)\n" +\
               "\tREAD (arg,*) ITERATIONS\n")
       
-      f.write("\tX=%f\n" % x +\
-              "\tDO 29999 K=0,ITERATIONS,1\n" +\
-              "\t  Y=0.0\n"+\
-              "\t  DO 21999 I=0,%d,1\n" % num_coefs +\
-              "\t    Y=Y+C(I)*X**I\n" + \
-              "21999\t  CONTINUE\n" + \
-              "29999\tCONTINUE\n" +\
-              "\tWRITE (*,*), Y\n" +\
-              "\tEND\n")
+#      f.write("\tX=%f\n" % x +\
+#              "\tDO 29999 K=0,ITERATIONS,1\n" +\
+#              "\t  Y=0.0\n" +\
+#              "\t  DO 21999 I=0,%d,1\n" % num_coefs +\
+#              "\t    Y=Y+C(I)*X**I\n" + \
+#              "21999\t  CONTINUE\n" + \
+#              "29999\tCONTINUE\n" +\
+#              "\tWRITE (*,*), Y\n" +\
+#              "\tEND\n")
+      f.write("""
+\tX=%f
+\tDO 29999 K=0,ITERATIONS,1
+\t  Y=C(1)""" % x )
+      for i in range(1,num_coefs) :
+         f.write("+C(%d)*X**%d" % (i+1, i) )
+      f.write("""
+21999\t  CONTINUE
+29999\tCONTINUE
+\tWRITE (*,*), Y
+\tEND\n""")
+
    fortran_compile ( filename )
    print(str(timeit.timeit("fortran_execute('%s', %d)" % (filename, iterations), \
                        setup="from __main__ import fortran_execute", number=10))+" seconds")
@@ -69,15 +83,21 @@ def make_fortran_horner( filename, coefficients, x, iterations ):
       f.write("\tCALL getarg(1, arg)\n" +\
               "\tREAD (arg,*) ITERATIONS\n")
       
-      f.write("\tX=%f\n" % x +\
-              "\tDO 29999 K=0,ITERATIONS,1\n" +\
-              "\t  Y=0.0\n"+\
-              "\t  DO 21999 I=0,%d,1\n" % num_coefs +\
-              "\t    Y=C(I)+X*Y\n" + \
-              "21999\t  CONTINUE\n" + \
-              "29999\tCONTINUE\n" +\
-              "\tWRITE (*,*), Y\n" +\
-              "\tEND\n")
+      f.write("""
+\tX=%f
+\tDO 29999 K=0,ITERATIONS,1
+\t  Y="""  % x )
+      for i in range(num_coefs) :
+         if i == num_coefs - 1 :
+            f.write("C(%d)" % (i+1) )
+         else :
+            f.write("(C(%d)+X*" % (i+1) )
+      for i in range(1,num_coefs) :
+         f.write(")")
+      f.write("""
+29999\tCONTINUE
+\tWRITE (*,*), Y
+\tEND\n""")
    fortran_compile ( filename )
    print(str(timeit.timeit("fortran_execute('%s', %d)" % (filename, iterations), \
                        setup="from __main__ import fortran_execute", number=10))+" seconds")
@@ -103,7 +123,6 @@ def make_c_horner( filename, coefficients, x, iterations ):
       num_coefs = len(coefficients)
       f.write("""#include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
 int main(int argc, char *argv[] ){\n
 double c[%d];\n
 double x, y;
@@ -115,14 +134,18 @@ int iterations;\n"""  % num_coefs )
 iterations = atoi(argv[1]);
 x = %f;
 for (k=0; k<iterations; k++ ) {
-  y=0.0;
-  for (i=0; i<%d; i++ ) {
-    y=c[i]+x*y;
-    }
+  y=(""" % x)
+      for i in range(num_coefs):
+         if i == num_coefs -1 :
+            f.write("c[%d]" % i)
+         else:
+            f.write("c[%d]+x*(" % i )
+      f.write(")"*num_coefs)
+      f.write(""";
   }
-printf ("result is %%f\\n", y);
+printf ("result is %f\\n", y);
 return 0;  
-}""" % (x, num_coefs) )
+}""" )
    c_compile ( filename )
    print(str(timeit.timeit("c_execute('%s', %d)" % (filename, iterations), \
                        setup="from __main__ import c_execute", number=10))+" seconds")
@@ -157,14 +180,16 @@ int iterations;\n"""  % num_coefs )
          f.write("c[%d]=%f;\n" % (i, coefficients[i]))
       f.write("""
 iterations = atoi(argv[1]);
-x = %f;\n""" % x +\
-"""for (k=0; k<iterations; k++ ) {
-  y=0.0;
-  for (i=0; i<%d; i++ ) {
-""" % num_coefs + \
-"""    y=y+c[i]*powi(x, i);
+x = %f;
+for (k=0; k<iterations; k++ ) {
+  y=c[0] +""" % x)
+      for i in range(1,num_coefs) :
+         if i < num_coefs-1 :
+            f.write(("c[%d]*" % i ) + efficient_exponent(i,'x')+" + ")
+         else :
+            f.write(("c[%d]*" % i ) + efficient_exponent(i,'x')+";" )
+      f.write("""
     }
-  }
 printf ("result is %f\\n", y);
 return 0;  
 }""" )
